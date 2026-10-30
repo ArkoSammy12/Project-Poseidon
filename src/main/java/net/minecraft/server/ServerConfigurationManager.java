@@ -179,6 +179,9 @@ public class ServerConfigurationManager {
 //        PlayerTracker.getInstance().removePlayer(entityplayer.name);
         //Project POSEIDON End
 
+        // Flush transient cursor/crafting state before save so disconnects cannot lose those items.
+        entityplayer.defaultContainer.a((EntityHuman) entityplayer);
+        entityplayer.A();
         this.playerFileData.a(entityplayer);
         this.server.getWorldServer(entityplayer.dimension).kill(entityplayer);
         this.players.remove(entityplayer);
@@ -269,7 +272,9 @@ public class ServerConfigurationManager {
             if (location == null) {
                 cworld = (CraftWorld) this.server.server.getWorlds().get(0);
                 chunkcoordinates = cworld.getHandle().getSpawn();
-                location = new Location(cworld, chunkcoordinates.x + 0.5, chunkcoordinates.y, chunkcoordinates.z + 0.5);
+                float yaw = cworld.getHandle().worldData.getYaw(); // Poseidon
+                float pitch = cworld.getHandle().worldData.getPitch(); // Poseidon
+                location = new Location(cworld, chunkcoordinates.x + 0.5, chunkcoordinates.y, chunkcoordinates.z + 0.5, yaw, pitch);
             }
 
             Player respawnPlayer = this.cserver.getPlayer(entityplayer);

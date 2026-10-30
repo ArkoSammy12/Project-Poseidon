@@ -73,8 +73,12 @@ public final class CraftServer implements Server {
     private final Map<String, World> worlds = new LinkedHashMap<String, World>();
     private final Configuration configuration;
     private final Yaml yaml = new Yaml(new SafeConstructor());
-    private boolean shuttingdown = false;
-    private final List<String> hiddenCommands = new ArrayList<>(); //Project Poseidon - Create variable
+
+    // Project Poseidon - Start
+    private volatile boolean shuttingdown = false;
+    private final List<String> hiddenCommands = new ArrayList<>();
+
+    // Project Poseidon - End
 
     public CraftServer(MinecraftServer console, ServerConfigurationManager server) {
         this.console = console;
@@ -142,9 +146,13 @@ public final class CraftServer implements Server {
     public void enablePlugins(PluginLoadOrder type) {
         Plugin[] plugins = pluginManager.getPlugins();
 
+        // Enable startup plugins first, then postworld plugins later.
+        // If a plugin depends on another plugin from the current phase, enable that dependency first.
+        // Dependencies from a later phase stay disabled until that phase runs.
         for (Plugin plugin : plugins) {
-            if ((!plugin.isEnabled()) && (plugin.getDescription().getLoad() == type)) {
-                loadPlugin(plugin);
+            // Re-evaluate every disabled plugin on each phase so deferred dependencies can come alive later.
+            if (!plugin.isEnabled() && shouldAttemptEnable(plugin, type)) {
+                enablePlugin(plugin, type, new LinkedHashSet<String>());
             }
         }
 
@@ -157,6 +165,72 @@ public final class CraftServer implements Server {
 
     public void disablePlugins() {
         pluginManager.disablePlugins();
+    }
+
+    private boolean shouldAttemptEnable(Plugin plugin, PluginLoadOrder type) {
+        // Startup plugins are eligible during both passes. Postworld plugins only become eligible later.
+        //TODO Reevaluate if this should be allowed
+        return plugin.getDescription().getLoad().ordinal() <= type.ordinal();
+    }
+
+    private boolean enablePlugin(Plugin plugin, PluginLoadOrder type, Set<String> enabling) {
+        if (plugin.isEnabled()) {
+            return true;
+        }
+
+        if (!shouldAttemptEnable(plugin, type)) {
+            return false;
+        }
+
+        String pluginName = plugin.getDescription().getName();
+        // Guard against recursive dependency loops during the current enable chain.
+        if (!enabling.add(pluginName)) {
+            getLogger().log(Level.SEVERE, "Circular plugin dependency detected while enabling " + plugin.getDescription().getFullName());
+            return false;
+        }
+
+        try {
+            Object dependObject = plugin.getDescription().getDepend();
+            if (dependObject instanceof Collection) {
+                for (Object dependencyNameObject : (Collection) dependObject) {
+                    String dependencyName = String.valueOf(dependencyNameObject);
+                    Plugin dependency = pluginManager.getPlugin(dependencyName);
+
+                    if (dependency == null) {
+                        getLogger().log(Level.SEVERE, "Could not enable " + plugin.getDescription().getFullName() + ": missing required dependency " + dependencyName);
+                        return false;
+                    }
+
+                    // A dependency scheduled for a later phase will be retried when that phase runs.
+                    if (!shouldAttemptEnable(dependency, type)) {
+                        return false;
+                    }
+
+                    // Hard dependencies must be fully enabled before this plugin can start.
+                    if (!enablePlugin(dependency, type, enabling)) {
+                        return false;
+                    }
+                }
+            }
+
+            Object softDependObject = plugin.getDescription().getSoftDepend();
+            if (softDependObject instanceof Collection) {
+                for (Object dependencyNameObject : (Collection) softDependObject) {
+                    String dependencyName = String.valueOf(dependencyNameObject);
+                    Plugin dependency = pluginManager.getPlugin(dependencyName);
+                    // Soft dependencies are enabled first when possible, but do not block startup.
+                    if (dependency != null && !dependency.isEnabled() && shouldAttemptEnable(dependency, type)) {
+                        enablePlugin(dependency, type, enabling);
+                    }
+                }
+            }
+
+            // The actual enable call stays in one place so permission registration behavior is unchanged.
+            loadPlugin(plugin);
+            return plugin.isEnabled();
+        } finally {
+            enabling.remove(pluginName);
+        }
     }
 
     private void loadPlugin(Plugin plugin) {
@@ -778,6 +852,7 @@ public final class CraftServer implements Server {
     }
 
     public void shutdown() {
+        setShuttingdown(true);
         console.a();
     }
 

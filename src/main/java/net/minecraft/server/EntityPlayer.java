@@ -38,6 +38,8 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
         int i = chunkcoordinates.x;
         int j = chunkcoordinates.z;
         int k = chunkcoordinates.y;
+        float yaw = world.worldData.getYaw(); // Poseidon
+        float pitch = world.worldData.getPitch(); // Poseidon
 
         if (!world.worldProvider.e) {
             k = world.f(i, j); //Project Poseidon: This finds a solid block, this needs to be left outside of the setting
@@ -47,7 +49,7 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
             }
         }
 
-        this.setPositionRotation((double) i + 0.5D, (double) k, (double) j + 0.5D, 0.0F, 0.0F);
+        this.setPositionRotation((double) i + 0.5D, (double) k, (double) j + 0.5D, yaw, pitch);
         this.b = minecraftserver;
         this.bs = 0.0F;
         this.name = s;
@@ -483,6 +485,12 @@ public class EntityPlayer extends EntityHuman implements ICrafting {
         this.activeContainer.windowId = this.bO;
         this.activeContainer.a((ICrafting) this);
     }
+
+    // Poseidon start - check if player editing sign is the same player who placed the sign
+    public void a(TileEntitySign tileentitysign) {
+        tileentitysign.setEditingPlayer(this);
+    }
+    // Poseidon end
 
     public void a(Container container, int i, ItemStack itemstack) {
         if (!(container.b(i) instanceof SlotResult)) {

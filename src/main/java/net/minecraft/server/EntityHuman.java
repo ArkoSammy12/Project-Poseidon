@@ -61,8 +61,10 @@ public abstract class EntityHuman extends EntityLiving {
         this.activeContainer = this.defaultContainer;
         this.height = 1.62F;
         ChunkCoordinates chunkcoordinates = world.getSpawn();
+        float yaw = world.worldData.getYaw(); // Poseidon
+        float pitch = world.worldData.getPitch(); // Poseidon
 
-        this.setPositionRotation((double) chunkcoordinates.x + 0.5D, (double) (chunkcoordinates.y + 1), (double) chunkcoordinates.z + 0.5D, 0.0F, 0.0F);
+        this.setPositionRotation((double) chunkcoordinates.x + 0.5D, (double) (chunkcoordinates.y + 1), (double) chunkcoordinates.z + 0.5D, yaw, pitch);
         this.health = 20;
         this.U = "humanoid";
         this.T = 180.0F;
@@ -261,6 +263,10 @@ public abstract class EntityHuman extends EntityLiving {
     }
 
     public void a(ItemStack itemstack, boolean flag) {
+        this.dropItemStack(itemstack, flag);
+    }
+
+    public void dropItemStack(ItemStack itemstack, boolean randomDirection) {
         if (itemstack != null) {
             EntityItem entityitem = new EntityItem(this.world, this.locX, this.locY - 0.30000001192092896D + (double) this.t(), this.locZ, itemstack);
 
@@ -268,7 +274,7 @@ public abstract class EntityHuman extends EntityLiving {
             float f = 0.1F;
             float f1;
 
-            if (flag) {
+            if (randomDirection) {
                 f1 = this.random.nextFloat() * 0.5F;
                 float f2 = this.random.nextFloat() * 3.1415927F * 2.0F;
 
